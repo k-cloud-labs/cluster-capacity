@@ -28,7 +28,7 @@ import (
 )
 
 var (
-	ResourceGPU v1.ResourceName = "nvdia.com/gpu"
+	ResourceGPU v1.ResourceName = "nvidia.com/gpu"
 )
 
 // Retrieve a namespace pod constructed from the namespace limitations.

@@ -32,7 +32,7 @@ import (
 	schedconfig "k8s.io/kubernetes/cmd/kube-scheduler/app/config"
 	schedoptions "k8s.io/kubernetes/cmd/kube-scheduler/app/options"
 	"k8s.io/kubernetes/pkg/scheduler"
-	framework "k8s.io/kubernetes/pkg/scheduler/framework"
+	"k8s.io/kubernetes/pkg/scheduler/framework"
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 	"k8s.io/kubernetes/pkg/scheduler/profile"
 
@@ -40,11 +40,16 @@ import (
 	"k8s.io/client-go/tools/events"
 
 	uuid "github.com/satori/go.uuid"
+
 	"sigs.k8s.io/cluster-capacity/pkg/framework/strategy"
 )
 
 const (
 	podProvisioner = "cc.kubernetes.io/provisioned-by"
+)
+
+var (
+	listOptions = metav1.ListOptions{ResourceVersion: "0"}
 )
 
 type ClusterCapacity struct {
@@ -98,7 +103,7 @@ func (c *ClusterCapacity) Report() *ClusterCapacityReview {
 }
 
 func (c *ClusterCapacity) SyncWithClient(client externalclientset.Interface) error {
-	podItems, err := client.CoreV1().Pods(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
+	podItems, err := client.CoreV1().Pods(metav1.NamespaceAll).List(context.TODO(), listOptions)
 	if err != nil {
 		return fmt.Errorf("unable to list pods: %v", err)
 	}
@@ -109,7 +114,7 @@ func (c *ClusterCapacity) SyncWithClient(client externalclientset.Interface) err
 		}
 	}
 
-	nodeItems, err := client.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+	nodeItems, err := client.CoreV1().Nodes().List(context.TODO(), listOptions)
 	if err != nil {
 		return fmt.Errorf("unable to list nodes: %v", err)
 	}
@@ -120,7 +125,7 @@ func (c *ClusterCapacity) SyncWithClient(client externalclientset.Interface) err
 		}
 	}
 
-	serviceItems, err := client.CoreV1().Services(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
+	serviceItems, err := client.CoreV1().Services(metav1.NamespaceAll).List(context.TODO(), listOptions)
 	if err != nil {
 		return fmt.Errorf("unable to list services: %v", err)
 	}
@@ -131,7 +136,7 @@ func (c *ClusterCapacity) SyncWithClient(client externalclientset.Interface) err
 		}
 	}
 
-	pvcItems, err := client.CoreV1().PersistentVolumeClaims(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
+	pvcItems, err := client.CoreV1().PersistentVolumeClaims(metav1.NamespaceAll).List(context.TODO(), listOptions)
 	if err != nil {
 		return fmt.Errorf("unable to list pvcs: %v", err)
 	}
@@ -142,7 +147,7 @@ func (c *ClusterCapacity) SyncWithClient(client externalclientset.Interface) err
 		}
 	}
 
-	rcItems, err := client.CoreV1().ReplicationControllers(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
+	rcItems, err := client.CoreV1().ReplicationControllers(metav1.NamespaceAll).List(context.TODO(), listOptions)
 	if err != nil {
 		return fmt.Errorf("unable to list RCs: %v", err)
 	}
@@ -153,7 +158,7 @@ func (c *ClusterCapacity) SyncWithClient(client externalclientset.Interface) err
 		}
 	}
 
-	pdbItems, err := client.PolicyV1beta1().PodDisruptionBudgets(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
+	pdbItems, err := client.PolicyV1beta1().PodDisruptionBudgets(metav1.NamespaceAll).List(context.TODO(), listOptions)
 	if err != nil {
 		return fmt.Errorf("unable to list PDBs: %v", err)
 	}
@@ -164,7 +169,7 @@ func (c *ClusterCapacity) SyncWithClient(client externalclientset.Interface) err
 		}
 	}
 
-	replicaSetItems, err := client.AppsV1().ReplicaSets(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
+	replicaSetItems, err := client.AppsV1().ReplicaSets(metav1.NamespaceAll).List(context.TODO(), listOptions)
 	if err != nil {
 		return fmt.Errorf("unable to list replicas sets: %v", err)
 	}
@@ -175,7 +180,7 @@ func (c *ClusterCapacity) SyncWithClient(client externalclientset.Interface) err
 		}
 	}
 
-	statefulSetItems, err := client.AppsV1().StatefulSets(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
+	statefulSetItems, err := client.AppsV1().StatefulSets(metav1.NamespaceAll).List(context.TODO(), listOptions)
 	if err != nil {
 		return fmt.Errorf("unable to list stateful sets: %v", err)
 	}
@@ -186,7 +191,7 @@ func (c *ClusterCapacity) SyncWithClient(client externalclientset.Interface) err
 		}
 	}
 
-	storageClassesItems, err := client.StorageV1().StorageClasses().List(context.TODO(), metav1.ListOptions{})
+	storageClassesItems, err := client.StorageV1().StorageClasses().List(context.TODO(), listOptions)
 	if err != nil {
 		return fmt.Errorf("unable to list storage classes: %v", err)
 	}
@@ -194,6 +199,17 @@ func (c *ClusterCapacity) SyncWithClient(client externalclientset.Interface) err
 	for _, item := range storageClassesItems.Items {
 		if _, err := c.externalkubeclient.StorageV1().StorageClasses().Create(context.TODO(), &item, metav1.CreateOptions{}); err != nil {
 			return fmt.Errorf("unable to copy storage class: %v", err)
+		}
+	}
+
+	configMaps, err := client.CoreV1().ConfigMaps(metav1.NamespaceAll).List(context.TODO(), listOptions)
+	if err != nil {
+		return fmt.Errorf("unable to list configmaps: %v", err)
+	}
+
+	for _, item := range configMaps.Items {
+		if _, err := c.externalkubeclient.CoreV1().ConfigMaps(item.Namespace).Create(context.TODO(), &item, metav1.CreateOptions{}); err != nil {
+			return fmt.Errorf("unable to copy configmaps: %v", err)
 		}
 	}
 
@@ -421,14 +437,14 @@ func New(kubeSchedulerConfig *schedconfig.CompletedConfig, simulatedPod *v1.Pod,
 	}
 
 	cc.schedulers = make(map[string]*scheduler.Scheduler)
+	cc.defaultSchedulerName = kubeSchedulerConfig.ComponentConfig.Profiles[0].SchedulerName
 
-	scheduler, err := cc.createScheduler(v1.DefaultSchedulerName, kubeSchedulerConfig)
+	scheduler, err := cc.createScheduler(cc.defaultSchedulerName, kubeSchedulerConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	cc.schedulers[v1.DefaultSchedulerName] = scheduler
-	cc.defaultSchedulerName = v1.DefaultSchedulerName
+	cc.schedulers[cc.defaultSchedulerName] = scheduler
 	return cc, nil
 }
 

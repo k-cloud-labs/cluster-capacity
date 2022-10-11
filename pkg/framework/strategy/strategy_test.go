@@ -32,7 +32,7 @@ import (
 )
 
 const (
-	ResourceNvidiaGPU v1.ResourceName = "nvdia.com/gpu"
+	ResourceNvidiaGPU v1.ResourceName = "nvidia.com/gpu"
 )
 
 func getTestNode(nodeName string) *v1.Node {

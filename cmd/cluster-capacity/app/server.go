@@ -24,7 +24,6 @@ import (
 	"github.com/lithammer/dedent"
 	"github.com/spf13/cobra"
 
-	v1 "k8s.io/api/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -106,23 +105,6 @@ func Run(opt *options.ClusterCapacityOptions) error {
 		return err
 	}
 
-	// Always set the list of bind plugins to ClusterCapacityBinder
-	if len(kcfg.Profiles) == 0 {
-		kcfg.Profiles = []kubeschedulerconfig.KubeSchedulerProfile{
-			{},
-		}
-	}
-
-	kcfg.Profiles[0].SchedulerName = v1.DefaultSchedulerName
-	if kcfg.Profiles[0].Plugins == nil {
-		kcfg.Profiles[0].Plugins = &kubeschedulerconfig.Plugins{}
-	}
-
-	kcfg.Profiles[0].Plugins.Bind = &kubeschedulerconfig.PluginSet{
-		Enabled:  []kubeschedulerconfig.Plugin{{Name: "ClusterCapacityBinder"}},
-		Disabled: []kubeschedulerconfig.Plugin{{Name: "DefaultBinder"}},
-	}
-
 	opts := &schedoptions.Options{
 		ComponentConfig: kcfg,
 		ConfigFile:      conf.Options.DefaultSchedulerConfigFile,
@@ -134,7 +116,16 @@ func Run(opt *options.ClusterCapacityOptions) error {
 		return fmt.Errorf("failed to init kube scheduler configuration: %v ", err)
 	}
 
-	err = conf.ParseAPISpec(v1.DefaultSchedulerName)
+	if cc.ComponentConfig.Profiles[0].Plugins == nil {
+		cc.ComponentConfig.Profiles[0].Plugins = &kubeschedulerconfig.Plugins{}
+	}
+
+	cc.ComponentConfig.Profiles[0].Plugins.Bind = &kubeschedulerconfig.PluginSet{
+		Enabled:  []kubeschedulerconfig.Plugin{{Name: "ClusterCapacityBinder"}},
+		Disabled: []kubeschedulerconfig.Plugin{{Name: "DefaultBinder"}},
+	}
+
+	err = conf.ParseAPISpec(cc.ComponentConfig.Profiles[0].SchedulerName)
 	if err != nil {
 		return fmt.Errorf("Failed to parse pod spec file: %v ", err)
 	}
